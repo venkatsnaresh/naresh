@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSD Object Detection</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.8.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Your CSS styles here */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+
+
+                   <h2>Accessing the Interface:</h2>
+    <ul>
+        <li>
+            <h3>When the page loads, users will see buttons for "Live Video" and "Upload Image".</h3>
+        </li>
+        
+        
+        
+  <ul>
+    <li><span style="font-weight: bold;">Live Video:</span> Click "Live Video" to detect objects via camera. Access granted triggers video stream.</li>
+    <li><span style="font-weight: bold;">Upload Image:</span> Click "Upload Image" to select image for detection.</li>
+    <li><span style="font-weight: bold;">Object Detection:</span> Detect objects with confidence scores, outlined on image.</li>
+    <li><span style="font-weight: bold;">Clear Results:</span> After detection, click "Clear Results" to hide detected objects.</li>
+    <li><span style="font-weight: bold;">Understanding Results:</span> List objects with names and confidence scores. Bounding boxes show object location.</li>
+</ul>
+
+    </ul>
+   
+   
+   <div class="text-center md-6 text-danger">
+    Try now 
+</div>
+
+    
+    
+            
+                <div class="text-center md-6">
+                    <button id="live-video-btn" class="btn btn-primary me-5">Live Video</button>
+                    <button id="stop-video-btn" class="btn btn-danger me-2" style="display: none;">Stop</button>
+                    <button id="clear-results-btn" class="btn btn-secondary me-2" style="display: none;">Clear Results</button>
+                    <button id="image-upload-btn" class="btn btn-primary">Upload Image</button>
+                </div>
+                <input type="file" id="image-upload" accept="image/*" style="display: none;">
+                <div id="video-container" style="display: none;">
+                    <video id="video-stream" autoplay playsinline></video>
+                    <button id="take-picture-btn" class="btn btn-primary mt-2">Take Picture</button>
+                </div>
+                <div id="output" class="text-center mb-3"></div>
+                <div id="result"></div>
+                <div class="progress" style="display: none;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <div id="loading-text" class="text-center text-danger" style="display: none;">Model loading and processing...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let videoStream;
+        let modelLoaded = false;
+        let model;
+
+        async function detectObjects(imageElement) {
+            if (!modelLoaded) {
+                document.getElementById('loading-text').style.display = 'block';
+                await loadModel();
+                document.getElementById('loading-text').style.display = 'none';
+            }
+            const predictions = await model.detect(imageElement);
+            console.log('Predictions:', predictions);
+            const outputDiv = document.getElementById('output');
+            outputDiv.innerHTML = '';
+
+            predictions.forEach(prediction => {
+                const p = document.createElement('p');
+                p.textContent = `${prediction.class}: ${Math.round(prediction.score * 100)}%`;
+                outputDiv.appendChild(p);
+
+                // Draw bounding box
+                const resultCanvas = document.createElement('canvas');
+                resultCanvas.id = 'result-canvas';
+                resultCanvas.width = imageElement.width;
+                resultCanvas.height = imageElement.height;
+                const ctx = resultCanvas.getContext('2d');
+
+                ctx.drawImage(imageElement, 0, 0);
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.rect(prediction.bbox[0], prediction.bbox[1], prediction.bbox[2], prediction.bbox[3]);
+                ctx.stroke();
+
+                const resultDiv = document.getElementById('result');
+                resultDiv.innerHTML = '';
+                resultDiv.appendChild(resultCanvas);
+            });
+            // Show the "Clear Results" button
+            document.getElementById('clear-results-btn').style.display = 'inline-block';
+            // Hide the progress bar after detection is done
+            document.querySelector('.progress').style.display = 'none';
+        }
+
+        async function startVideoStream() {
+            try {
+                videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const video = document.getElementById('video-stream');
+                video.srcObject = videoStream;
+                video.play();
+                document.getElementById('video-container').style.display = 'block';
+                document.getElementById('live-video-btn').style.display = 'none';
+                document.getElementById('stop-video-btn').style.display = 'inline-block';
+            } catch (err) {
+                console.error('Error accessing camera:', err);
+            }
+        }
+
+        function stopVideoStream() {
+            if (videoStream) {
+                const tracks = videoStream.getTracks();
+                tracks.forEach(track => track.stop());
+                videoStream = null;
+                document.getElementById('video-container').style.display = 'none';
+                document.getElementById('live-video-btn').style.display = 'inline-block';
+                document.getElementById('stop-video-btn').style.display = 'none';
+            }
+        }
+
+        async function loadModel() {
+            modelLoaded = true;
+            model = await cocoSsd.load();
+        }
+
+        document.getElementById('live-video-btn').addEventListener('click', startVideoStream);
+        document.getElementById('stop-video-btn').addEventListener('click', stopVideoStream);
+
+        document.getElementById('take-picture-btn').addEventListener('click', async function() {
+            const video = document.getElementById('video-stream');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            await detectObjects(canvas);
+        });
+
+        document.getElementById('clear-results-btn').addEventListener('click', function() {
+            // Clear the results and hide the button
+            document.getElementById('output').innerHTML = '';
+            document.getElementById('result').innerHTML = '';
+            document.getElementById('clear-results-btn').style.display = 'none';
+        });
+
+        document.getElementById('image-upload-btn').addEventListener('click', function() {
+            // Trigger file input
+            document.getElementById('image-upload').click();
+        });
+
+        document.getElementById('image-upload').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+
+            reader.onloadstart = function() {
+                // Show progress bar while loading
+                document.querySelector('.progress').style.display = 'block';
+            };
+
+            reader.onload = function(event) {
+                const imageElement = document.createElement('img');
+                imageElement.src = event.target.result;
+                imageElement.onload = async function() {
+                    await detectObjects(imageElement);
+                };
+            };
+
+            reader.readAsDataURL(file);
+        });
+    </script>
+</body>
+</html>
