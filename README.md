@@ -1,1 +1,1 @@
-nareshvenkats.github.io/venkats.html
+https://venkatsnaresh.github.io/naresh/venkats.html
